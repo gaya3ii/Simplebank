@@ -1,0 +1,14 @@
+version: "2"
+cloud:
+    organization: ""
+    project: ""
+    hostname: ""
+servers: []
+sql:
+  - engine: "postgresql"
+    queries: "./db/query"
+    schema: "./db/migration/000001_init_schema.up.sql"
+    gen:
+      go:
+        package: "db"
+        out: "./db"
