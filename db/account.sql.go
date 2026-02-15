@@ -106,9 +106,52 @@ func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]A
 	return items, nil
 }
 
-const updateAccount = `-- name: UpdateAccount :exec
+const listAccountsByOwner = `-- name: ListAccountsByOwner :many
+SELECT id, owner, balance, currency, created_at FROM accounts
+WHERE owner = $1
+ORDER BY id
+LIMIT $2
+OFFSET $3
+`
+
+type ListAccountsByOwnerParams struct {
+	Owner  string
+	Limit  int32
+	Offset int32
+}
+
+func (q *Queries) ListAccountsByOwner(ctx context.Context, arg ListAccountsByOwnerParams) ([]Account, error) {
+	rows, err := q.db.QueryContext(ctx, listAccountsByOwner, arg.Owner, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Account
+	for rows.Next() {
+		var i Account
+		if err := rows.Scan(
+			&i.ID,
+			&i.Owner,
+			&i.Balance,
+			&i.Currency,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateAccount = `-- name: UpdateAccount :one
 UPDATE accounts
-set balance  = $2
+SET balance = $2
 WHERE id = $1
 RETURNING id, owner, balance, currency, created_at
 `
@@ -118,7 +161,15 @@ type UpdateAccountParams struct {
 	Balance int64
 }
 
-func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) error {
-	_, err := q.db.ExecContext(ctx, updateAccount, arg.ID, arg.Balance)
-	return err
+func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error) {
+	row := q.db.QueryRowContext(ctx, updateAccount, arg.ID, arg.Balance)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.Owner,
+		&i.Balance,
+		&i.Currency,
+		&i.CreatedAt,
+	)
+	return i, err
 }
